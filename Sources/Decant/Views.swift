@@ -156,10 +156,11 @@ struct ContentView: View {
         HStack(spacing: 0) {
             SidebarView()
                 .frame(width: 236)
-                .padding(.top, 40)  // the traffic lights sit inside the panel
-                .background { SidebarPanel() }
-                .padding(10)
-                .ignoresSafeArea(.container, edges: .top)
+                // Keep the scroll view clear of the titlebar safe area: touching it, the scroll view grows under the
+                // titlebar and rows scroll up behind the traffic lights. Only the panel extends up around them.
+                .padding(.top, 10)
+                .background { SidebarPanel().padding(.top, 10).ignoresSafeArea(.container, edges: .top) }
+                .padding([.horizontal, .bottom], 10)
             DetailView()
         }
         .background(Palette.window)
@@ -334,8 +335,6 @@ struct SidebarView: View {
                 .padding(.bottom, 8)
             }
             .scrollIndicators(.never)
-            // The scroll view extends under the titlebar safe area; keep rows inside the panel.
-            .clipped()
             footer
         }
         .alert("Rename Entry", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
