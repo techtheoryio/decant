@@ -148,6 +148,8 @@ struct Dot: View {
 struct ContentView: View {
     @Environment(Store.self) private var store
     @State private var showInspector = false
+    @State private var copied = false
+    @State private var hideCopied: Task<Void, Never>?
 
     var body: some View {
         @Bindable var store = store
@@ -171,6 +173,27 @@ struct ContentView: View {
             if case .success(let url) = result { store.load(url) }
         }
         .sheet(isPresented: $store.showPalette) { CommandPalette().environment(store) }
+        .overlay(alignment: .bottom) {
+            if copied {
+                Label("Copied", systemImage: "checkmark.circle.fill")
+                    .font(.system(size: 13, weight: .semibold))
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 9)
+                    .glassCapsule()
+                    .padding(.bottom, 28)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .allowsHitTesting(false)
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .copied)) { _ in
+            withAnimation(.snappy) { copied = true }
+            hideCopied?.cancel()
+            hideCopied = Task {
+                try? await Task.sleep(for: .seconds(1.4))
+                guard !Task.isCancelled else { return }
+                withAnimation(.easeOut) { copied = false }
+            }
+        }
         #if DEBUG
         .task { await debugSnapshot() }
         #endif
@@ -311,6 +334,8 @@ struct SidebarView: View {
                 .padding(.bottom, 8)
             }
             .scrollIndicators(.never)
+            // The scroll view extends under the titlebar safe area; keep rows inside the panel.
+            .clipped()
             footer
         }
         .alert("Rename Entry", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
@@ -745,6 +770,14 @@ struct ErrorBar: View {
     static func copy(_ text: String) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
+        copied()
+    }
+
+    /// Shows the "Copied" toast and tells VoiceOver.
+    static func copied() {
+        NotificationCenter.default.post(name: .copied, object: nil)
+        NSAccessibility.post(element: NSApp as Any, notification: .announcementRequested,
+                             userInfo: [.announcement: "Copied", .priority: NSAccessibilityPriorityLevel.high.rawValue])
     }
 
     static func save(_ data: Data, name: String) {

@@ -47,6 +47,7 @@ enum OutputCommand: String { case find, save, copy }
 
 extension Notification.Name {
     static let outputCommand = Notification.Name("DecantOutputCommand")
+    static let copied = Notification.Name("DecantCopied")
 }
 
 func post(_ command: OutputCommand) {

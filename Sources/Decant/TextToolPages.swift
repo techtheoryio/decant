@@ -756,5 +756,6 @@ struct QRPage: View {
     private func copy(_ image: NSImage) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.writeObjects([image])
+        Output.copied()
     }
 }
