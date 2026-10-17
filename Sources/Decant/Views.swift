@@ -1126,13 +1126,12 @@ struct CommandPalette: View {
                     LazyVStack(spacing: 2) {
                         ForEach(Array(items.enumerated()), id: \.element.id) { i, item in
                             row(item, selected: i == index)
-                                .id(i)
                                 .onTapGesture { open(item) }
                         }
                     }
                     .padding(8)
                 }
-                .onChange(of: index) { _, i in proxy.scrollTo(i) }
+                .onChange(of: index) { _, i in if items.indices.contains(i) { proxy.scrollTo(items[i].id) } }
             }
         }
         .frame(width: 560, height: 420)
