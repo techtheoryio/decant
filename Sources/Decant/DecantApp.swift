@@ -30,6 +30,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Needed when launched as a bare SwiftPM executable rather than a bundled .app.
         NSApp.setActivationPolicy(.regular)
+        if let url = Bundle.module.url(forResource: "AppIcon", withExtension: "icns") {
+            NSApp.applicationIconImage = NSImage(contentsOf: url)
+        }
         NSApp.activate()
         Task.detached { _ = ExternalFormatters.shared }  // the login-shell lookup takes a moment; warm it up
     }

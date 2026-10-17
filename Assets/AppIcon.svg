@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#25282F"/>
+      <stop offset="1" stop-color="#0C0D10"/>
+    </linearGradient>
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.16"/>
+      <stop offset="0.45" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="125%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="14"/>
+      <feOffset dy="12" result="blur"/>
+      <feFlood flood-color="#000000" flood-opacity="0.3"/>
+      <feComposite in2="blur" operator="in"/>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <clipPath id="d">
+      <path clip-rule="evenodd" d="M300 250 L520 250 C690 250 790 365 790 512 C790 659 690 774 520 774 L300 774 Z M420 370 L515 370 C612 370 670 430 670 512 C670 594 612 654 515 654 L420 654 Z"/>
+    </clipPath>
+  </defs>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)" filter="url(#shadow)"/>
+  <g clip-path="url(#d)">
+    <rect x="280" y="250" width="530" height="119" fill="#7CF2D4"/>
+    <rect x="280" y="385" width="530" height="119" fill="#4FC3F7"/>
+    <rect x="280" y="520" width="530" height="119" fill="#6E7BFF"/>
+    <rect x="280" y="655" width="530" height="119" fill="#A46BFF"/>
+    <rect x="280" y="250" width="530" height="12" fill="#FFFFFF" fill-opacity="0.38"/>
+    <rect x="280" y="385" width="530" height="12" fill="#FFFFFF" fill-opacity="0.32"/>
+    <rect x="280" y="520" width="530" height="12" fill="#FFFFFF" fill-opacity="0.28"/>
+    <rect x="280" y="655" width="530" height="12" fill="#FFFFFF" fill-opacity="0.24"/>
+  </g>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#sheen)"/>
+  <rect x="104" y="104" width="816" height="816" rx="181" fill="none" stroke="#FFFFFF" stroke-opacity="0.14" stroke-width="6"/>
+</svg>
