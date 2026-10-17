@@ -1,0 +1,14 @@
+name: Test
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v5
+      - run: swift test
+      - run: swift build -c release  # the app target has no tests; make sure it still compiles

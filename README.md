@@ -9,11 +9,13 @@ Decant is open source and free — forever. No accounts, no telemetry, no networ
 
 ## Install
 
-There are no prebuilt releases yet. Build it yourself (needs Xcode 26 / Swift 6):
+Download `Decant-<version>.zip` from [Releases](https://github.com/techtheoryio/decant/releases), unzip, and move `Decant.app` to Applications. Builds are signed and notarized. To update, download the newer release; watch the repo for "Releases only" to get notified.
+
+Or build it yourself (needs Xcode 26 / Swift 6):
 
 ```bash
 git clone https://github.com/techtheoryio/decant.git && cd decant
-swift run -c release Decant
+scripts/build-app.sh 0.0.0 && open .build/Decant.app
 ```
 
 For development:
@@ -68,6 +70,7 @@ Ground rules for PRs:
 - History lives in `~/Library/Application Support/Decant/history.json`; retention and size are set in Settings → History. Pinned entries are kept.
 - The Formatter uses Biome or Prettier when either is on your login-shell `PATH` (looked up via `zsh -lic`), Biome first for the languages it supports. Without them it falls back to the built-in JSON and JS/TS formatters and Foundation's XML/HTML pretty-printer; other languages are shown unformatted.
 - App icon: source `Assets/AppIcon.svg`; after editing run `Assets/make-icon.sh` (needs `rsvg-convert`) to rebuild `Sources/Decant/Resources/AppIcon.icns`.
+- Releasing: push a `v1.2.0`-style tag; `.github/workflows/release.yaml` runs the tests, builds a universal `.app` with `scripts/build-app.sh`, signs and notarizes it, and attaches the zip to a GitHub release. Secrets: `DEVELOPER_ID_P12` (base64 `.p12`), `DEVELOPER_ID_P12_PASSWORD`, `NOTARY_KEY` (base64 App Store Connect `.p8`), `NOTARY_KEY_ID`, `NOTARY_ISSUER_ID`.
 - Debug builds: `[DECANT_TOOL=base64] DECANT_INPUT=… [DECANT_AUX=…] DECANT_SNAPSHOT=out.png [DECANT_DARK=1] .build/debug/Decant` writes a PNG of the window and quits without touching history. UserDefaults can be set per run with launch arguments, e.g. `-formatterTree YES`.
 
 ## License
