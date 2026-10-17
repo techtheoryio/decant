@@ -19,6 +19,52 @@ public enum JSONValue: Sendable {
         return try parser.document()
     }
 
+    /// Strict parse first; on failure retries as JSON5-ish (comments, trailing commas, single quotes, unquoted keys).
+    /// `fixes` names what had to be repaired; it is empty for valid JSON. The thrown error is the lenient parser's.
+    public static func parseLoose(_ text: String) throws -> (value: JSONValue, fixes: [String]) {
+        if let v = try? parse(text) { return (v, []) }
+        var parser = JSONParser(bytes: Array(text.utf8))
+        parser.lenient = true
+        let v = try parser.document()
+        return (v, ["comments", "trailing commas", "single quotes", "unquoted keys"].filter(parser.fixes.contains))
+    }
+
+    public var typeName: String {
+        switch self {
+        case .object: "object"
+        case .array: "array"
+        case .string: "string"
+        case .number: "number"
+        case .bool: "boolean"
+        case .null: "null"
+        }
+    }
+
+    public var children: [(key: String, segment: String, value: JSONValue)]? {
+        switch self {
+        case .object(let m): m.map { ($0.key, JSONValue.segment(key: $0.key), $0.value) }
+        case .array(let a): a.enumerated().map { ("\($0.offset)", "[\($0.offset)]", $0.element) }
+        default: nil
+        }
+    }
+
+    /// `.name` for identifier keys, `['some key']` otherwise.
+    public static func segment(key: String) -> String {
+        if let f = key.first, f.isLetter || f == "_" || f == "$", key.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "_" || $0 == "$" }) {
+            return "." + key
+        }
+        return "['" + key.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "'", with: "\\'") + "']"
+    }
+
+    /// One-line preview: scalars as JSON, containers as `{3}` / `[5]`.
+    public var preview: String {
+        switch self {
+        case .object(let m): "{\(m.count)}"
+        case .array(let a): "[\(a.count)]"
+        default: formatted(indent: nil)
+        }
+    }
+
     public var isContainer: Bool {
         switch self {
         case .object, .array: true
@@ -110,6 +156,8 @@ public struct JSONError: Error, CustomStringConvertible, Sendable {
 private struct JSONParser {
     let b: [UInt8]
     var i = 0
+    var lenient = false
+    var fixes: Set<String> = []
 
     init(bytes: [UInt8]) { b = bytes }
 
@@ -130,7 +178,25 @@ private struct JSONParser {
     func peek(_ c: Unicode.Scalar) -> Bool { i < b.count && b[i] == UInt8(ascii: c) }
 
     mutating func skip() {
-        while i < b.count, b[i] == 0x20 || b[i] == 0x0A || b[i] == 0x0D || b[i] == 0x09 { i += 1 }
+        let slash = UInt8(ascii: "/"), star = UInt8(ascii: "*")
+        while i < b.count {
+            let c = b[i]
+            if c == 0x20 || c == 0x0A || c == 0x0D || c == 0x09 { i += 1; continue }
+            guard lenient, c == slash, i + 1 < b.count, b[i + 1] == slash || b[i + 1] == star else { return }
+            fixes.insert("comments")
+            if b[i + 1] == slash {
+                while i < b.count, b[i] != 0x0A { i += 1 }
+            } else {
+                i += 2
+                while i + 1 < b.count, !(b[i] == star && b[i + 1] == slash) { i += 1 }
+                i = min(i + 2, b.count)
+            }
+        }
+    }
+
+    static func isIdentifier(_ c: UInt8) -> Bool {
+        c >= 0x80 || c == UInt8(ascii: "$") || c == UInt8(ascii: "_")
+            || (0x30...0x39).contains(c) || (0x41...0x5A).contains(c) || (0x61...0x7A).contains(c)
     }
 
     mutating func value(depth: Int) throws -> JSONValue {
@@ -145,8 +211,21 @@ private struct JSONParser {
             var members: [JSONMember] = []
             while true {
                 skip()
-                guard peek("\"") else { throw fail("Expected a key") }
-                let key = try string()
+                if lenient, peek("}") { fixes.insert("trailing commas"); i += 1; return .object(members) }
+                let key: String
+                if peek("\"") {
+                    key = try string()
+                } else if lenient, peek("'") {
+                    fixes.insert("single quotes")
+                    key = try string()
+                } else if lenient, i < b.count, JSONParser.isIdentifier(b[i]), !(0x30...0x39).contains(b[i]) {
+                    fixes.insert("unquoted keys")
+                    let start = i
+                    while i < b.count, JSONParser.isIdentifier(b[i]) { i += 1 }
+                    key = String(decoding: b[start..<i], as: UTF8.self)
+                } else {
+                    throw fail("Expected a key")
+                }
                 skip()
                 guard peek(":") else { throw fail("Expected ':'") }
                 i += 1
@@ -162,6 +241,7 @@ private struct JSONParser {
             if peek("]") { i += 1; return .array([]) }
             var items: [JSONValue] = []
             while true {
+                if lenient { skip(); if peek("]") { fixes.insert("trailing commas"); i += 1; return .array(items) } }
                 items.append(try value(depth: depth + 1))
                 skip()
                 if peek(",") { i += 1; continue }
@@ -169,6 +249,7 @@ private struct JSONParser {
                 throw fail("Expected ',' or ']'")
             }
         case UInt8(ascii: "\""): return .string(try string())
+        case UInt8(ascii: "'") where lenient: fixes.insert("single quotes"); return .string(try string())
         case UInt8(ascii: "t"): try literal("true"); return .bool(true)
         case UInt8(ascii: "f"): try literal("false"); return .bool(false)
         case UInt8(ascii: "n"): try literal("null"); return .null
@@ -210,13 +291,14 @@ private struct JSONParser {
     }
 
     mutating func string() throws -> String {
+        let quote = b[i]
         i += 1
         var out: [UInt8] = []
         while i < b.count {
             let c = b[i]
             i += 1
             switch c {
-            case UInt8(ascii: "\""):
+            case quote:
                 return String(decoding: out, as: UTF8.self)
             case UInt8(ascii: "\\"):
                 guard i < b.count else { break }
@@ -224,6 +306,7 @@ private struct JSONParser {
                 i += 1
                 switch e {
                 case UInt8(ascii: "\""), UInt8(ascii: "\\"), UInt8(ascii: "/"): out.append(e)
+                case UInt8(ascii: "'") where lenient: out.append(e)
                 case UInt8(ascii: "b"): out.append(0x08)
                 case UInt8(ascii: "f"): out.append(0x0C)
                 case UInt8(ascii: "n"): out.append(0x0A)
