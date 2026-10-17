@@ -49,7 +49,7 @@ struct Entry: Codable, Identifiable, Hashable {
 }
 
 enum Tool: String, CaseIterable, Identifiable, Hashable {
-    case json = "JSON Formatter", base64 = "Base64", unixTime = "Unix Time"
+    case json = "JSON", base64 = "Base64", unixTime = "Unix Time"
 
     var id: String { rawValue }
 
@@ -79,6 +79,8 @@ final class Store {
     var input = "" { didSet { if input != oldValue { refresh(); record() } } }
     var options = Options() { didSet { refresh() } }
     var target: Target?
+    /// Whether the "Original" input row under the output is expanded.
+    var originalExpanded = false
     private(set) var result: Conversion?
     private var force: Format?
     private var currentID: UUID?
@@ -99,13 +101,11 @@ final class Store {
 
     var title: String {
         let full = result?.title ?? (input.isEmpty ? "New" : String(input.prefix { $0 != "\n" }))
-        return full.count > 40 ? full.prefix(40) + "…" : full
+        return full.count > 24 ? full.prefix(22) + "…" : full
     }
 
-    var subtitle: String {
-        guard let result else { return "No format detected" }
-        return "\(result.input.name) → \(target?.rawValue ?? result.output.name)"
-    }
+    var date: Date? { entries.first { $0.id == currentID }?.date }
+
 
     func newDocument() {
         sidebar = .new
@@ -123,6 +123,7 @@ final class Store {
             currentID = id
             force = nil
             target = nil
+            originalExpanded = false
             input = entry.input
             refresh()
         }

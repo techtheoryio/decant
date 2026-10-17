@@ -91,6 +91,8 @@ public struct Conversion: Sendable {
     public var status: String?
     public var error: String?
     public var summary = ""
+    /// Short facts for the header's meta row, e.g. "7 keys".
+    public var meta: [String] = []
     public var title = ""
     /// The value "Convert To" targets operate on.
     public var source = ""
@@ -151,6 +153,7 @@ public enum Engine {
         var r = Conversion(input: format, output: .text, text: t)
         r.error = message
         r.summary = "\(t.count) characters"
+        r.meta = [r.summary]
         return r
     }
 
@@ -188,6 +191,8 @@ public enum Engine {
         r.details = [Detail("Format", input == .escapedJSON ? "Escaped JSON string" : "JSON"), Detail("Converted to", "JSON")]
         if input == .escapedJSON { r.details.append(Detail("Escapes removed", "\(escapeCount(t))")) }
         r.details.append(Detail("Keys", "\(value.keyCount)"))
+        r.meta = [value.keyCount == 1 ? "1 key" : "\(value.keyCount) keys"]
+        if input == .escapedJSON { r.meta.append("\(escapeCount(t)) escapes removed") }
         r.status = "Valid"
         r.summary = "\(lines(lineCount(text))) · \(o.minify ? "minified" : o.indent.summary) · UTF-8"
         r.title = value.firstString ?? ""
@@ -234,6 +239,7 @@ public enum Engine {
             Detail("Text encoding", "UTF-8"),
         ]
         r.summary = "\(s.count) characters → \(data.count) bytes · UTF-8"
+        r.meta = ["\(data.count) bytes · UTF-8", "\(urlSafe ? "URL-safe" : "Standard") alphabet, \(pad > 0 ? "padded" : "unpadded")"]
         r.source = decoded
         r.targets = [.base64URL, .hex]
         let trimmed = decoded.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -252,6 +258,7 @@ public enum Engine {
         r.steps = [Step(.text, "Encoded")]
         r.details = [Detail("Alphabet", "Standard"), Detail("Text encoding", "UTF-8")]
         r.summary = "\(t.utf8.count) bytes → \(r.text.count) characters"
+        r.meta = [r.summary]
         r.source = t
         r.targets = [.base64URL, .hex]
         return r
@@ -268,6 +275,10 @@ public enum Engine {
         r.details = [Detail("Language", language.name), Detail("Characters", "\(t.count)")]
         if formatted.balanced { r.status = "Brackets balanced" } else { r.error = "Unbalanced brackets or quotes" }
         r.summary = "\(lines(lineCount(t))) → \(lines(lineCount(formatted.text))) · \(o.indent.summary) · UTF-8"
+        r.meta = ["\(lineCount(t)) → \(lines(lineCount(formatted.text)))", "\(t.count) characters"]
+        if let m = t.firstMatch(of: /\b(function|class|interface)\s+([\w$]+)/) {
+            r.title = String(m.2) + (m.1 == "function" ? "()" : "")
+        }
         return r
     }
 
@@ -304,6 +315,7 @@ public enum Engine {
         var r = Conversion(input: .unixTime, output: .text, text: rows.map { $0.0.padding(toLength: 14, withPad: " ", startingAt: 0) + $0.1 }.joined(separator: "\n"))
         r.details = [Detail("Unit", ms ? "Milliseconds" : "Seconds"), Detail("Time zone", zoneName)]
         r.summary = "Unix timestamp · \(ms ? "milliseconds" : "seconds")"
+        r.meta = [ms ? "Milliseconds" : "Seconds", zoneName]
         r.title = t
         return r
     }

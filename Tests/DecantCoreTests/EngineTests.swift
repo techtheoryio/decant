@@ -47,6 +47,7 @@ export async function redeem(code: string, userId: string) {
     #expect(r.details.contains(Detail("Escapes removed", "26")))
     #expect(r.details.contains(Detail("Keys", "7")))
     #expect(r.summary == "9 lines · 2 spaces · UTF-8")
+    #expect(r.meta == ["7 keys", "26 escapes removed"])
 }
 
 @Test func quotedEscapedJSONString() throws {
@@ -62,6 +63,7 @@ export async function redeem(code: string, userId: string) {
     #expect(r.text == base64Expected)
     #expect(r.steps.map(\.label) == ["Decoded", "Parsed as JSON", "Formatted"])
     #expect(r.summary == "92 characters → 68 bytes · UTF-8")
+    #expect(r.meta == ["68 bytes · UTF-8", "Standard alphabet, padded"])
 }
 
 @Test func base64WithoutNestingGivesText() throws {
@@ -78,6 +80,8 @@ export async function redeem(code: string, userId: string) {
     #expect(r.text == tsExpected)
     #expect(r.error == nil)
     #expect(r.summary == "1 line → 6 lines · 2 spaces · UTF-8")
+    #expect(r.title == "redeem()")
+    #expect(r.meta == ["1 → 6 lines", "235 characters"])
 }
 
 @Test func javaScriptBlocksAndCallbacks() {
