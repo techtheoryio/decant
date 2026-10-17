@@ -307,7 +307,8 @@ struct UnixTimePage: View {
             CapsuleButton(title: "Now", systemImage: "clock.arrow.circlepath") { setDate(Date()) }
             HStack(spacing: 8) {
                 Text("Date")
-                DatePicker("Date", selection: Binding(get: { date ?? Date() }, set: setDate), displayedComponents: [.date, .hourAndMinute])
+                // `set: { setDate($0) }`, not `set: setDate`: the method reference crashes Swift 6.3 IRGen.
+                DatePicker("Date", selection: Binding(get: { date ?? Date() }, set: { setDate($0) }), displayedComponents: [.date, .hourAndMinute])
                     .labelsHidden()
                     .datePickerStyle(.compact)
                     .environment(\.timeZone, zone)
