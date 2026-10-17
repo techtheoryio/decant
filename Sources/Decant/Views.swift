@@ -573,15 +573,45 @@ struct OptionSegments<Value: Hashable>: View {
     var body: some View {
         HStack(spacing: 10) {
             if let title { Text(title) }
-            Picker(title ?? "", selection: $selection) {
-                ForEach(options.indices, id: \.self) { Text(options[$0].0).tag(options[$0].1) }
-            }
-            .labelsHidden()
-            .pickerStyle(.segmented)
-            .fixedSize()
+            Segments(selection: $selection, options: options)
         }
-        .padding(.leading, title == nil ? -8 : 0)
-        .optionCapsule()
+        .font(.system(size: 12.5))
+        .padding(.leading, title == nil ? 4 : 14)
+        .padding(.trailing, 4)
+        .frame(height: 32)
+        .glassCapsule()
+    }
+}
+
+/// Segmented control drawn in SwiftUI. The AppKit segmented Picker misreports its size on first layout
+/// inside the glass capsules, which clipped the selected segment until the first click.
+struct Segments<Value: Hashable>: View {
+    @Binding var selection: Value
+    let options: [(String, Value)]
+    var compact = false
+    @Namespace private var pill
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(options.indices, id: \.self) { i in
+                let selected = options[i].1 == selection
+                Button { selection = options[i].1 } label: {
+                    Text(options[i].0)
+                        .font(.system(size: compact ? 11.5 : 12.5, weight: .medium))
+                        .foregroundStyle(selected ? AnyShapeStyle(.white) : AnyShapeStyle(.primary))
+                        .padding(.horizontal, compact ? 9 : 11)
+                        .frame(height: compact ? 22 : 24)
+                        .background {
+                            if selected { Capsule().fill(Color.accentColor).matchedGeometryEffect(id: "pill", in: pill) }
+                        }
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(selected ? .isSelected : [])
+            }
+        }
+        .fixedSize()
+        .animation(.snappy(duration: 0.2), value: selection)
     }
 }
 

@@ -19,7 +19,7 @@ struct FormatterPage: View {
     @AppStorage("sortKeys") private var sortKeys = false
     @AppStorage("minify") private var minify = false
     @AppStorage("unescape") private var unescape = true
-    @AppStorage("formatterLanguage") private var languageChoice = ""
+    @State private var languageChoice = ""  // "" = auto; not persisted, or a stale pick would mis-format the next paste
     @AppStorage("useExternalFormatter") private var useExternal = true
     @AppStorage("formatterTree") private var showTree = false
     @State private var query = ""
@@ -88,15 +88,10 @@ struct FormatterPage: View {
     }
 
     private var modePicker: some View {
-        Picker("View", selection: $showTree) {
-            Text("Text").tag(false)
-            Text("Tree").tag(true)
-        }
-        .labelsHidden()
-        .pickerStyle(.segmented)
-        .controlSize(.small)
-        .fixedSize()
-        .padding(.trailing, 4)
+        Segments(selection: $showTree, options: [("Text", false), ("Tree", true)], compact: true)
+            .padding(2)
+            .background(Palette.cardSeparator, in: Capsule())
+            .padding(.trailing, 4)
     }
 
     private var queryField: some View {
