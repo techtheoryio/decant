@@ -2,6 +2,22 @@
 
 Paste anything; Decant detects the format and converts it — plus a set of focused developer tools. Native macOS app (SwiftUI + AppKit, macOS 14+). Everything runs locally.
 
+Decant is open source and free — forever. No accounts, no telemetry, no network calls, no paid tier, no "pro" features.
+
+![Formatter: minified JSON in, pretty JSON out](Assets/screenshots/formatter.png)
+![JWT decoder in dark mode](Assets/screenshots/jwt.png)
+
+## Install
+
+There are no prebuilt releases yet. Build it yourself (needs Xcode 26 / Swift 6):
+
+```bash
+git clone https://github.com/techtheoryio/decant.git && cd decant
+swift run -c release Decant
+```
+
+For development:
+
 ```bash
 swift run Decant      # build and launch
 swift test            # engine tests
@@ -21,6 +37,31 @@ swift test            # engine tests
 
 Shortcuts: ⌘K command palette, ⌘1–⌘9 tools (order from Settings → Sidebar), ⌘N new document, ⌘O open file, ⌘S save output, ⇧⌘C copy output, ⌘F find in output, ⌘+ / ⌘− font size, ⌥⌘Z wrap lines.
 
+## Staying small
+
+Decant's main feature is what it leaves out. Every tool has to earn its place, and the bar is high:
+
+- **Daily use.** A tool belongs here if developers reach for it every week, not once a year.
+- **Offline and local.** Nothing leaves your machine. No features that need a server, an API key, or a login.
+- **Zero dependencies.** Only Apple's frameworks. Optional external tools (Biome, Prettier) are used when you already have them, never bundled.
+- **Fast to open, fast to use.** Paste, get the answer, move on. No setup, no onboarding, no settings you have to learn first.
+- **Deleting beats adding.** A smaller, sharper app is better than a bigger one. We remove things that don't pull their weight.
+
+If an idea doesn't fit, that's not a judgment on the idea — it probably makes a great standalone tool.
+
+## Contributing
+
+Bug fixes, polish, and better behavior of existing tools are always welcome — just open a PR.
+
+For a **new tool or a bigger change, open an issue first** so we can talk about whether it fits the list above before you spend time on it.
+
+Ground rules for PRs:
+
+- Keep the diff focused. One change per PR.
+- No new dependencies.
+- Logic goes in `Sources/DecantCore` with a test in `Tests/DecantCoreTests`; `swift test` must pass.
+- Match the surrounding code style. Less code is better code.
+
 ## Notes
 
 - `Sources/DecantCore` — deterministic engine and tool logic, no UI. `Sources/Decant` — the app.
@@ -28,3 +69,7 @@ Shortcuts: ⌘K command palette, ⌘1–⌘9 tools (order from Settings → Side
 - The Formatter uses Biome or Prettier when either is on your login-shell `PATH` (looked up via `zsh -lic`), Biome first for the languages it supports. Without them it falls back to the built-in JSON and JS/TS formatters and Foundation's XML/HTML pretty-printer; other languages are shown unformatted.
 - App icon: source `Assets/AppIcon.svg`; after editing run `Assets/make-icon.sh` (needs `rsvg-convert`) to rebuild `Sources/Decant/Resources/AppIcon.icns`.
 - Debug builds: `[DECANT_TOOL=base64] DECANT_INPUT=… [DECANT_AUX=…] DECANT_SNAPSHOT=out.png [DECANT_DARK=1] .build/debug/Decant` writes a PNG of the window and quits without touching history. UserDefaults can be set per run with launch arguments, e.g. `-formatterTree YES`.
+
+## License
+
+[MIT](LICENSE).
