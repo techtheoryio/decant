@@ -536,10 +536,13 @@ struct ToolPage<Options: View, Content: View>: View {
             ScrollView(.horizontal) {
                 HStack(spacing: 8) { options }
                     .padding(.vertical, 6)
-                    .padding(.horizontal, 2)
+                    .padding(.leading, 24)
+                    .padding(.trailing, 20)
             }
             .scrollIndicators(.never)
-            .scrollClipDisabled()
+            // Clipped at the page edges (not the sidebar) so scrolled options can't slide over the sidebar.
+            .padding(.leading, -22)
+            .padding(.trailing, -18)
             .padding(.bottom, 8)
             content.frame(maxWidth: .infinity, maxHeight: .infinity)
         }
