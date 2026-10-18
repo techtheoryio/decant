@@ -1219,6 +1219,9 @@ struct GeneralSettings: View {
                 LabeledContent("Biome", value: formatters.map { $0.biome ?? "Not found" } ?? "Looking…")
                 LabeledContent("Prettier", value: formatters.map { $0.prettier ?? "Not found" } ?? "Looking…")
             }
+            Section {
+                Link("Decant on GitHub", destination: githubURL)
+            }
         }
         .formStyle(.grouped)
         .onChange(of: indent) { _, v in store.detectOptions.indent = v }

@@ -54,6 +54,8 @@ func post(_ command: OutputCommand) {
     NotificationCenter.default.post(name: .outputCommand, object: command.rawValue)
 }
 
+let githubURL = URL(string: "https://github.com/techtheoryio/decant")!
+
 struct AppCommands: Commands {
     let store: Store
     @AppStorage("toolOrder") private var order = ""
@@ -81,6 +83,9 @@ struct AppCommands: Commands {
             Button("Default Font Size") { fontSize = 13 }.keyboardShortcut("0")
             Toggle("Wrap Lines", isOn: $wrap).keyboardShortcut("z", modifiers: [.option])
             Divider()
+        }
+        CommandGroup(replacing: .help) {
+            Link("Decant on GitHub", destination: githubURL)
         }
         CommandMenu("Tools") {
             Button("Command Palette…") { store.showPalette = true }.keyboardShortcut("k")
