@@ -169,3 +169,50 @@ import Testing
     #expect(bad.errorLine == 3 && bad.errorColumn == 5)
     #expect(f.format("x", language: .xml, indent: .two) == nil)  // Prettier doesn't do XML without a plugin
 }
+
+@Test func gitDiffDropsNoiseAndFilters() {
+    let diff = """
+    commit abc
+    diff --git a/src/api/user.ts b/src/api/user.ts
+    index 1..2 100644
+    --- a/src/api/user.ts
+    +++ b/src/api/user.ts
+    @@ -1 +1 @@
+    -old
+    +new
+    diff --git a/yarn.lock b/yarn.lock
+    --- a/yarn.lock
+    +++ b/yarn.lock
+    @@ -1 +1 @@
+    -a
+    +b
+    diff --git a/src/api/user.test.ts b/src/api/user.test.ts
+    deleted file mode 100644
+    --- a/src/api/user.test.ts
+    +++ /dev/null
+    @@ -1,2 +0,0 @@
+    -x
+    -y
+    diff --git a/logo.png b/logo.png
+    Binary files a/logo.png and b/logo.png differ
+    diff --git a/README.md b/README.md
+    --- a/README.md
+    +++ b/README.md
+    @@ -1 +1 @@
+    -r
+    +s
+    """
+    let all = GitDiff.clean(diff)
+    #expect(all.files.map(\.path) == ["src/api/user.ts", "yarn.lock", "src/api/user.test.ts", "logo.png", "README.md"])
+    #expect(all.files.map(\.skipped) == [nil, "Lockfile", nil, "Binary", nil])
+    #expect(all.files[2].removed == 2 && all.files[2].deleted)
+    #expect(all.output.hasPrefix("commit abc\ndiff --git a/src/api/user.ts"))
+    #expect(!all.output.contains("yarn.lock"))
+
+    let api = GitDiff.clean(diff, patterns: "src/api, !*.test.ts")
+    #expect(api.files.filter { $0.skipped == nil }.map(\.path) == ["src/api/user.ts"])
+    #expect(GitDiff.clean(diff, patterns: "src/**/*.ts").files.filter { $0.skipped == nil }.count == 2)
+    #expect(GitDiff.clean(diff, patterns: GitDiff.excludePattern("README.md")).files.last?.skipped == "Excluded")
+    #expect(GitDiff.clean(diff, skipNoise: false).files.allSatisfy { $0.skipped == nil })
+    #expect(!GitDiff.clean(diff, collapseDeleted: true).output.contains("-x"))
+}

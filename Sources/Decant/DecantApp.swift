@@ -115,7 +115,7 @@ enum Category: String, CaseIterable {
 }
 
 enum Tool: String, CaseIterable, Identifiable, Codable, Hashable {
-    case detect, formatter, base64, url, unixTime, cron, jwt, uuid, password, csv, diff, regex, counter, markdown, color, qr
+    case detect, formatter, base64, url, unixTime, cron, jwt, uuid, password, csv, diff, gitDiff, regex, counter, markdown, color, qr
 
     var id: String { rawValue }
 
@@ -132,6 +132,7 @@ enum Tool: String, CaseIterable, Identifiable, Codable, Hashable {
         case .password: "Passwords"
         case .csv: "CSV ↔ JSON"
         case .diff: "Diff"
+        case .gitDiff: "Git Diff"
         case .regex: "Regex"
         case .counter: "Counter"
         case .markdown: "Markdown"
@@ -153,6 +154,7 @@ enum Tool: String, CaseIterable, Identifiable, Codable, Hashable {
         case .password: "lock"
         case .csv: "tablecells"
         case .diff: "plusminus"
+        case .gitDiff: "arrow.triangle.branch"
         case .regex: "asterisk"
         case .counter: "textformat.123"
         case .markdown: "doc.richtext"
@@ -168,7 +170,7 @@ enum Tool: String, CaseIterable, Identifiable, Codable, Hashable {
         case .unixTime, .cron: .time
         case .jwt, .uuid, .password: .security
         case .csv: .data
-        case .diff, .regex, .counter: .text
+        case .diff, .gitDiff, .regex, .counter: .text
         case .color, .qr: .misc
         }
     }

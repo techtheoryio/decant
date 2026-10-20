@@ -440,6 +440,7 @@ struct DetailView: View {
             case .password: PasswordPage()
             case .csv: CSVPage()
             case .diff: DiffPage()
+            case .gitDiff: GitDiffPage()
             case .regex: RegexPage()
             case .counter: CounterPage()
             case .markdown: MarkdownPage()
