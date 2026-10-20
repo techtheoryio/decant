@@ -207,6 +207,112 @@ struct DiffView: View {
     }
 }
 
+// MARK: - Git diff
+
+struct GitDiffPage: View {
+    @Environment(Store.self) private var store
+    @AppStorage("gitDiffSkipNoise") private var skipNoise = true
+    @AppStorage("gitDiffCollapseDeleted") private var collapseDeleted = false
+    @State private var result = GitDiff.Result()
+
+    private struct Key: Equatable { var diff, patterns: String; var noise, deleted: Bool }
+
+    var body: some View {
+        @Bindable var store = store
+        let doc = store[doc: .gitDiff]
+        let kept = result.files.filter { $0.skipped == nil }.count
+        ToolPage(tool: .gitDiff,
+                 status: doc.input.isEmpty ? nil : result.files.isEmpty ? .warning("No git diff found") : Status(text: "\(kept) of \(result.files.count) files"),
+                 meta: doc.input.isEmpty ? ["Trim a diff down to what a reviewer needs"] : ["~\(tokens(result.output)) tokens", "was ~\(tokens(doc.input))"]) {
+            HStack(spacing: 8) {
+                Image(systemName: "line.3.horizontal.decrease").foregroundStyle(Palette.text4)
+                TextField("Paths, e.g. src/api !*.test.ts", text: $store[doc: .gitDiff].aux)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 13.5, design: .monospaced))
+                    .frame(width: 320)
+            }
+            .padding(.horizontal, 14)
+            .frame(height: 32)
+            .glassCapsule()
+            OptionToggle(title: "Skip lockfiles & generated", isOn: $skipNoise)
+            OptionToggle(title: "Collapse deleted files", isOn: $collapseDeleted)
+        } content: {
+            GeometryReader { g in
+                HStack(spacing: 14) {
+                    VStack(spacing: 14) {
+                        EditorPane(title: "Git Diff", text: $store[doc: .gitDiff].input,
+                                   placeholder: "Paste the output of git diff, git show or a .patch file, e.g. git diff main | pbcopy")
+                        Pane("Files") { fileList }
+                            .frame(height: max(140, g.size.height * 0.4))
+                    }
+                    EditorPane(title: "Cleaned", text: .constant(result.output), editable: false, output: true, primary: true, fileExtension: "diff")
+                }
+            }
+        }
+        .task(id: Key(diff: doc.input, patterns: doc.aux, noise: skipNoise, deleted: collapseDeleted)) {
+            let (d, p, n, c) = (doc.input, doc.aux, skipNoise, collapseDeleted)
+            result = await Task.detached { GitDiff.clean(d, patterns: p, skipNoise: n, collapseDeleted: c) }.value
+        }
+    }
+
+    @ViewBuilder private var fileList: some View {
+        if result.files.isEmpty {
+            Text("Files in the diff show up here. Untick one to leave it out.")
+                .foregroundStyle(Palette.text4).frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    ForEach(result.files, id: \.self) { f in
+                        fileRow(f)
+                        Rectangle().fill(Palette.cardSeparator).frame(height: 1)
+                    }
+                }
+            }
+        }
+    }
+
+    private func fileRow(_ f: GitDiff.File) -> some View {
+        let pattern = GitDiff.excludePattern(f.path)
+        // Only files kept, or dropped by their own `!path`, can be ticked here; the rest follow the filter and toggles.
+        let ownExclude = patternTokens.contains(pattern)
+        return HStack(spacing: 10) {
+            Toggle(f.path, isOn: Binding(get: { f.skipped == nil }, set: { on in
+                var t = patternTokens.filter { $0 != pattern }
+                if !on { t.append(pattern) }
+                store[doc: .gitDiff].aux = t.joined(separator: " ")
+            }))
+            .labelsHidden()
+            .toggleStyle(.checkbox)
+            .disabled(f.skipped != nil && !ownExclude)
+            Text(f.path)
+                .font(.system(size: 12.5, design: .monospaced))
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .foregroundStyle(f.skipped == nil ? AnyShapeStyle(.primary) : AnyShapeStyle(Palette.text4))
+                .help(f.path)
+            Spacer(minLength: 8)
+            if let reason = f.skipped, !ownExclude {
+                Text(reason).font(.system(size: 11.5)).foregroundStyle(Palette.text4)
+            }
+            HStack(spacing: 6) {
+                Text("+\(f.added)").foregroundStyle(Palette.added)
+                Text("−\(f.removed)").foregroundStyle(Palette.removed)
+            }
+            .font(.system(size: 11.5, weight: .semibold, design: .monospaced))
+            .opacity(f.skipped == nil ? 1 : 0.5)
+        }
+        .padding(.horizontal, 16)
+        .frame(height: 30)
+    }
+
+    private var patternTokens: [String] {
+        store[doc: .gitDiff].aux.split(whereSeparator: { $0 == "," || $0.isWhitespace }).map(String.init)
+    }
+
+    /// Rough count at four characters per token.
+    private func tokens(_ s: String) -> String { (s.utf8.count / 4).formatted(.number.notation(.compactName)) }
+}
+
 // MARK: - Regex
 
 struct RegexPage: View {

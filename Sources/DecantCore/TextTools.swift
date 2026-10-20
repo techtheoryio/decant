@@ -101,6 +101,125 @@ public enum Diff {
     }
 }
 
+// MARK: - Git diff cleanup
+
+/// Splits `git diff` output into files and drops the ones a reviewer doesn't need (lockfiles, generated, filtered).
+public enum GitDiff {
+    public struct File: Sendable, Hashable {
+        public let path: String
+        public let added: Int, removed: Int
+        public let binary: Bool, deleted: Bool
+        /// Why the file was left out, or nil when it's kept.
+        public let skipped: String?
+    }
+
+    public struct Result: Sendable, Equatable {
+        public var files: [File] = []
+        public var output = ""
+        public init() {}
+    }
+
+    static let lockfiles: Set<String> = [
+        "package-lock.json", "npm-shrinkwrap.json", "yarn.lock", "pnpm-lock.yaml", "bun.lock", "bun.lockb", "deno.lock",
+        "Cargo.lock", "Gemfile.lock", "composer.lock", "poetry.lock", "uv.lock", "Pipfile.lock", "go.sum", "Package.resolved",
+        "Podfile.lock", "pubspec.lock", "mix.lock", "flake.lock", "packages.lock.json", "gradle.lockfile",
+    ]
+    static let generated = [".min.js", ".min.css", ".map"]
+
+    /// `patterns`: globs separated by spaces or commas. Plain ones keep only matching files, `!`-prefixed ones drop files.
+    /// A pattern with a slash is anchored at the repo root and also matches everything below a directory; one without
+    /// matches any file or directory name (`*.test.ts`, `docs`). `*` stays within a name, `**` crosses directories.
+    public static func clean(_ diff: String, patterns: String = "", skipNoise: Bool = true, collapseDeleted: Bool = false) -> Result {
+        var preamble: [Substring] = [], sections: [[Substring]] = []
+        for line in diff.split(separator: "\n", omittingEmptySubsequences: false) {
+            if line.hasPrefix("diff --git ") { sections.append([line]) }
+            else if sections.isEmpty { preamble.append(line) }
+            else { sections[sections.count - 1].append(line) }
+        }
+        let rules = patterns.split(whereSeparator: { $0 == "," || $0.isWhitespace }).compactMap(Rule.init)
+        let includes = rules.filter { !$0.exclude }, excludes = rules.filter(\.exclude)
+        var result = Result(), out = preamble
+        for lines in sections {
+            let header = lines.prefix { !$0.hasPrefix("@@") }
+            var added = 0, removed = 0
+            for l in lines[header.endIndex...] {
+                if l.hasPrefix("+") { added += 1 } else if l.hasPrefix("-") { removed += 1 }
+            }
+            let path = path(lines[0], header)
+            let name = path.split(separator: "/").last.map(String.init) ?? path
+            let binary = header.contains { $0.hasPrefix("Binary files ") || $0 == "GIT binary patch" }
+            let deleted = header.contains { $0.hasPrefix("deleted file mode") }
+            var skipped: String?
+            if skipNoise, lockfiles.contains(name) { skipped = "Lockfile" }
+            else if skipNoise, generated.contains(where: name.hasSuffix) { skipped = "Generated" }
+            else if skipNoise, binary { skipped = "Binary" }
+            else if !includes.isEmpty, !includes.contains(where: { $0.matches(path) }) { skipped = "Not in filter" }
+            else if excludes.contains(where: { $0.matches(path) }) { skipped = "Excluded" }
+            result.files.append(File(path: path, added: added, removed: removed, binary: binary, deleted: deleted, skipped: skipped))
+            if skipped == nil { out += deleted && collapseDeleted ? Array(header) : lines }
+        }
+        result.output = out.joined(separator: "\n")
+        return result
+    }
+
+    /// The new path, or the old one for deletions; `diff --git a/P b/P` as the fallback (binary files, mode changes).
+    static func path(_ first: Substring, _ header: ArraySlice<Substring>) -> String {
+        func value(_ prefix: String) -> String? {
+            guard let l = header.first(where: { $0.hasPrefix(prefix) }) else { return nil }
+            var v = String(l.dropFirst(prefix.count))
+            if v.hasSuffix("\t") { v.removeLast() }
+            if v.hasPrefix("\""), v.hasSuffix("\""), v.count > 1 { v = String(v.dropFirst().dropLast()) }
+            if v == "/dev/null" { return nil }
+            return v.hasPrefix("a/") || v.hasPrefix("b/") ? String(v.dropFirst(2)) : v
+        }
+        if let p = value("+++ ") ?? value("rename to ") ?? value("--- ") { return p }
+        let rest = first.dropFirst("diff --git ".count)  // "a/P b/P"
+        return String(rest.dropFirst(2).prefix(max(0, (rest.count - 5) / 2)))
+    }
+
+    /// A pattern that drops exactly this file, for unticking it in a file list.
+    public static func excludePattern(_ path: String) -> String {
+        let p = path.replacingOccurrences(of: " ", with: "?").replacingOccurrences(of: ",", with: "?")
+        return "!" + (p.contains("/") ? p : "/" + p)
+    }
+
+    struct Rule {
+        let exclude: Bool
+        let anchored: Bool
+        let regex: Regex<AnyRegexOutput>
+
+        init?(_ raw: Substring) {
+            exclude = raw.hasPrefix("!")
+            var p = exclude ? raw.dropFirst() : raw
+            if p.hasPrefix("./") { p = p.dropFirst(2) }
+            anchored = p.hasPrefix("/") || p.dropLast().contains("/")
+            p = p.drop { $0 == "/" }
+            while p.hasSuffix("/") { p = p.dropLast() }
+            guard !p.isEmpty else { return nil }
+            var r = "", c = Array(p), i = 0
+            while i < c.count {
+                if c[i] == "*", i + 1 < c.count, c[i + 1] == "*" {
+                    let slash = i + 2 < c.count && c[i + 2] == "/"
+                    r += slash ? "(?:.*/)?" : ".*"
+                    i += slash ? 3 : 2
+                    continue
+                }
+                r += c[i] == "*" ? "[^/]*" : c[i] == "?" ? "[^/]" : NSRegularExpression.escapedPattern(for: String(c[i]))
+                i += 1
+            }
+            guard let regex = try? Regex(r) else { return nil }
+            self.regex = regex
+        }
+
+        /// Anchored patterns match the path or a parent directory; the others any single name in the path.
+        func matches(_ path: String) -> Bool {
+            let parts = path.split(separator: "/")
+            let candidates = anchored ? parts.indices.map { parts[...$0].joined(separator: "/") } : parts.map(String.init)
+            return candidates.contains { (try? regex.wholeMatch(in: $0)) != nil }
+        }
+    }
+}
+
 // MARK: - Regex
 
 public enum RegexGroups {

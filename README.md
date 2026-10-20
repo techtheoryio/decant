@@ -34,7 +34,7 @@ swift test            # engine tests
 | Time | Unix time (live clock, results table, date picker, time zones, differences), Cron (plain words, next runs) |
 | Tokens & Security | JWT decoder with HMAC check, UUID v4/v7 + ULID generator and inspector, password generator |
 | Data | CSV ↔ JSON with table preview |
-| Text | Diff (side by side / unified, word highlights, folding), Regex tester, character/word/line counter |
+| Text | Diff (side by side / unified, word highlights, folding), Git Diff cleanup for AI review (drops lockfiles, generated and binary files; path filters), Regex tester, character/word/line counter |
 | Miscellaneous | Color converter (color panel, eyedropper, contrast), QR code generator and reader |
 
 Shortcuts: ⌘K command palette, ⌘1–⌘9 tools (order from Settings → Sidebar), ⌘N new document, ⌘O open file, ⌘S save output, ⇧⌘C copy output, ⌘F find in output, ⌘+ / ⌘− font size, ⌥⌘Z wrap lines.
