@@ -439,11 +439,13 @@ struct DetailView: View {
             case .uuid: UUIDPage()
             case .password: PasswordPage()
             case .csv: CSVPage()
+            case .yaml: YAMLPage()
             case .diff: DiffPage()
             case .gitDiff: GitDiffPage()
             case .regex: RegexPage()
             case .counter: CounterPage()
             case .markdown: MarkdownPage()
+            case .openapi: OpenAPIPage()
             case .color: ColorPage()
             case .qr: QRPage()
             }

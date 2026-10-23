@@ -906,6 +906,75 @@ struct CSVPage: View {
     }
 }
 
+// MARK: - JSON ↔ YAML
+
+struct YAMLPage: View {
+    @Environment(Store.self) private var store
+    @AppStorage("indent") private var indent: Indent = .two
+    @State private var error: JSONError?
+    /// Which side was typed in last; the other one is the output.
+    @State private var editedYAML = false
+    @State private var jump: Jump?
+
+    private var doc: Doc { store[doc: .yaml] }
+
+    var body: some View {
+        ToolPage(tool: .yaml, status: error.map { _ in .error("Invalid \(editedYAML ? "YAML" : "JSON")") } ?? (doc.input.isEmpty && doc.aux.isEmpty ? nil : Status(text: "Converted")),
+                 meta: ["YAML 1.2", "Anchors and merges resolved", "Comments dropped"]) {
+            OptionSegments(title: "JSON indent", selection: $indent, options: [("2", .two), ("4", .four), ("Tab", .tab)])
+        } content: {
+            HStack(spacing: 14) {
+                EditorPane(title: "JSON", text: Binding(get: { doc.input }, set: fromJSON),
+                           placeholder: "Paste JSON to turn it into YAML.", syntax: .json, output: editedYAML, primary: editedYAML, fileExtension: "json",
+                           errorLine: editedYAML ? nil : error?.line, jump: editedYAML ? nil : jump, footer: editedYAML ? nil : errorBar)
+                EditorPane(title: "YAML", text: Binding(get: { doc.aux }, set: fromYAML),
+                           placeholder: "Or paste YAML to turn it into JSON.", output: !editedYAML, primary: !editedYAML, fileExtension: "yaml",
+                           errorLine: editedYAML ? error?.line : nil, jump: editedYAML ? jump : nil, footer: editedYAML ? errorBar : nil)
+            }
+        }
+        .onChange(of: indent) { if editedYAML { fromYAML(doc.aux) } }
+        .onAppear { if doc.aux.isEmpty, !doc.input.isEmpty { fromJSON(doc.input) } }
+    }
+
+    private var errorBar: AnyView? {
+        error.map { e in AnyView(ErrorBar(message: e.description, line: e.line) { jump = Jump(line: e.line, column: e.column) }) }
+    }
+
+    private func fromJSON(_ json: String) {
+        editedYAML = false
+        guard !json.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            error = nil
+            store[doc: .yaml] = Doc()
+            return
+        }
+        do {
+            let v = try JSONValue.parseLoose(json).value
+            error = nil
+            store[doc: .yaml] = Doc(input: json, aux: YAML.write(v))
+        } catch {
+            self.error = error as? JSONError
+            store[doc: .yaml].input = json
+        }
+    }
+
+    private func fromYAML(_ yaml: String) {
+        editedYAML = true
+        guard !yaml.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            error = nil
+            store[doc: .yaml] = Doc()
+            return
+        }
+        do {
+            let v = try YAML.parse(yaml)
+            error = nil
+            store[doc: .yaml] = Doc(input: v.formatted(indent: indent.unit), aux: yaml)
+        } catch {
+            self.error = error as? JSONError
+            store[doc: .yaml].aux = yaml
+        }
+    }
+}
+
 struct TablePreview: View {
     let rows: [[String]]
     let header: Bool

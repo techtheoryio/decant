@@ -216,3 +216,67 @@ import Testing
     #expect(GitDiff.clean(diff, skipNoise: false).files.allSatisfy { $0.skipped == nil })
     #expect(!GitDiff.clean(diff, collapseDeleted: true).output.contains("-x"))
 }
+
+@Test func yamlParsesBlockFlowAndScalars() throws {
+    let yaml = """
+    %YAML 1.2
+    ---
+    # OpenAPI-ish
+    openapi: 3.1.0
+    info: &info
+      title: "Pets \\u00e9"   # comment
+      version: '1.0'
+      description: |
+        Line one
+          indented
+
+        after blank
+      summary: >-
+        folded
+        text
+    tags: [a, "b", {c: 1}]
+    servers:
+    - url: http://x.io/v1
+      flags: [yes, ~, 0x1F, +7, 1.5e3, .inf]
+    - - nested
+      - seq
+    plain: multi
+      line
+    copy:
+      <<: *info
+      title: Own
+    empty:
+    '200': ok
+    """
+    let v = try YAML.parse(yaml)
+    #expect(v.formatted(indent: nil) == #"""
+    {"openapi":"3.1.0","info":{"title":"Pets é","version":"1.0","description":"Line one\n  indented\n\nafter blank\n","summary":"folded text"},"tags":["a","b",{"c":1}],"servers":[{"url":"http://x.io/v1","flags":["yes",null,31,7,1.5e3,".inf"]},["nested","seq"]],"plain":"multi line","copy":{"title":"Own","version":"1.0","description":"Line one\n  indented\n\nafter blank\n","summary":"folded text"},"empty":null,"200":"ok"}
+    """#)
+    #expect(try YAML.parse("a: 1\n---\n- b").formatted(indent: nil) == #"[{"a":1},["b"]]"#)
+    #expect(try YAML.parse(#"{"a": [1, 2], "b": "\ud83d\ude00"}"#).formatted(indent: nil) == #"{"a":[1,2],"b":"😀"}"#)
+    #expect(try YAML.parse("k: |+\n  x\n\n").formatted(indent: nil) == #"{"k":"x\n\n"}"#)
+    #expect(throws: JSONError.self) { try YAML.parse("a: 1\n  b: 2") }
+    #expect((try? YAML.parse("a:\n  - 1\n\tb: 2")) == nil)
+    let bomb = "a: &a [x, x, x, x, x, x, x, x, x, x]\n" + (1...8).map { "\(Character(UnicodeScalar(97 + $0)!)): &\(Character(UnicodeScalar(97 + $0)!)) [" + Array(repeating: "*\(Character(UnicodeScalar(96 + $0)!))", count: 10).joined(separator: ", ") + "]" }.joined(separator: "\n")
+    #expect(throws: JSONError.self) { try YAML.parse(bomb) }
+}
+
+@Test func yamlRoundTripsJSON() throws {
+    let json = #"""
+    {"name":"Ada","n":-1.5e3,"ok":true,"none":null,"e":{},"l":[],"s":["yes","1.0","2024-01-01","","- x","a: b","#c","  pad","<<","null"],
+     "multi":"line 1\nline 2\n","strip":"a\nb","keep":"x\n\n","odd":"\tq\r","nested":[[1,[2]],{"k":{"z":"y"}}],"key with: colon":1,"200":{"d":"ok"}}
+    """#
+    let v = try JSONValue.parse(json)
+    let yaml = YAML.write(v)
+    #expect(try YAML.parse(yaml).formatted(indent: nil) == v.formatted(indent: nil))
+    #expect(yaml.contains("multi: |\n  line 1\n  line 2\n"))
+    #expect(yaml.contains("- - 1\n    - - 2\n"))
+    #expect(YAML.write(.string("x")) == "x\n")
+}
+
+@Test func openAPISummary() throws {
+    let doc = try YAML.parse("swagger: 2.0\ninfo: {title: Pets}\npaths:\n  /pets:\n    get: {}\n    post: {}\n    parameters: []\n  /pets/{id}:\n    get: {}")
+    let summary = try #require(OpenAPISummary(doc))
+    #expect(summary.version == "Swagger 2.0" && summary.title == "Pets" && summary.paths == 2 && summary.operations == 3)
+    #expect(OpenAPISummary(try YAML.parse("a: 1")) == nil)
+}
