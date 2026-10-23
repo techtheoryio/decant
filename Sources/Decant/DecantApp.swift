@@ -115,7 +115,7 @@ enum Category: String, CaseIterable {
 }
 
 enum Tool: String, CaseIterable, Identifiable, Codable, Hashable {
-    case detect, formatter, base64, url, unixTime, cron, jwt, uuid, password, csv, diff, gitDiff, regex, counter, markdown, color, qr
+    case detect, formatter, base64, url, unixTime, cron, jwt, uuid, password, csv, yaml, diff, gitDiff, regex, counter, markdown, openapi, color, qr
 
     var id: String { rawValue }
 
@@ -131,11 +131,13 @@ enum Tool: String, CaseIterable, Identifiable, Codable, Hashable {
         case .uuid: "UUID / ULID"
         case .password: "Passwords"
         case .csv: "CSV ↔ JSON"
+        case .yaml: "JSON ↔ YAML"
         case .diff: "Diff"
         case .gitDiff: "Git Diff"
         case .regex: "Regex"
         case .counter: "Counter"
         case .markdown: "Markdown"
+        case .openapi: "OpenAPI"
         case .color: "Color"
         case .qr: "QR Code"
         }
@@ -153,11 +155,13 @@ enum Tool: String, CaseIterable, Identifiable, Codable, Hashable {
         case .uuid: "number"
         case .password: "lock"
         case .csv: "tablecells"
+        case .yaml: "list.bullet.indent"
         case .diff: "plusminus"
         case .gitDiff: "arrow.triangle.branch"
         case .regex: "asterisk"
         case .counter: "textformat.123"
         case .markdown: "doc.richtext"
+        case .openapi: "server.rack"
         case .color: "paintpalette"
         case .qr: "qrcode"
         }
@@ -165,11 +169,11 @@ enum Tool: String, CaseIterable, Identifiable, Codable, Hashable {
 
     var category: Category {
         switch self {
-        case .detect, .formatter, .markdown: .format
+        case .detect, .formatter, .markdown, .openapi: .format
         case .base64, .url: .encoding
         case .unixTime, .cron: .time
         case .jwt, .uuid, .password: .security
-        case .csv: .data
+        case .csv, .yaml: .data
         case .diff, .gitDiff, .regex, .counter: .text
         case .color, .qr: .misc
         }

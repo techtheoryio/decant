@@ -572,6 +572,122 @@ struct MarkdownWebView: NSViewRepresentable {
     }
 }
 
+// MARK: - OpenAPI
+
+struct OpenAPIPage: View {
+    @Environment(Store.self) private var store
+    @Environment(\.colorScheme) private var scheme
+    @AppStorage("openapiPreviewOnly") private var previewOnly = false
+    @State private var summary: OpenAPISummary?
+    @State private var error: JSONError?
+    @State private var jump: Jump?
+
+    var body: some View {
+        @Bindable var store = store
+        let input = store[doc: .openapi].input
+        let isJSON = input.first { !$0.isWhitespace } == "{"
+        ToolPage(tool: .openapi,
+                 status: input.isEmpty ? nil : error != nil ? .error("Invalid \(isJSON ? "JSON" : "YAML")") : summary.map { Status(text: $0.version) } ?? .warning("Not an OpenAPI document"),
+                 meta: summary.map { [$0.title, "\($0.paths) paths", "\($0.operations) operations"].compactMap { $0 } } ?? ["OpenAPI 3 or Swagger 2, YAML or JSON", "Preview by Scalar"]) {
+            OptionSegments(selection: $previewOnly, options: [("Editor & Preview", false), ("Preview", true)])
+        } content: {
+            HStack(spacing: 14) {
+                if !previewOnly {
+                    EditorPane(title: "Spec", text: $store[doc: .openapi].input,
+                               placeholder: "Paste or drop an OpenAPI 3 or Swagger 2 document, YAML or JSON.",
+                               syntax: isJSON ? .json : .text, primary: true, fileExtension: isJSON ? "json" : "yaml", errorLine: error?.line, jump: jump,
+                               footer: error.map { e in AnyView(ErrorBar(message: e.description, line: e.line) { jump = Jump(line: e.line, column: e.column) }) })
+                }
+                Pane("Preview") {
+                    if input.isEmpty {
+                        Text("The API reference appears here.").foregroundStyle(Palette.text4).frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else {
+                        ScalarView(spec: input, dark: scheme == .dark)
+                    }
+                }
+            }
+        }
+        .task(id: input) {
+            let text = input
+            (summary, error) = await Task.detached { () -> (OpenAPISummary?, JSONError?) in
+                do { return (OpenAPISummary(try isJSON ? JSONValue.parse(text) : YAML.parse(text)), nil) } catch { return (nil, error as? JSONError) }
+            }.value
+        }
+    }
+}
+
+/// Scalar's API reference, from the bundled standalone build so it works offline. Its hosted extras (AI agent, MCP,
+/// telemetry, web fonts) are off; "Test Request" still calls the API's servers, as the user asks it to.
+struct ScalarView: NSViewRepresentable {
+    let spec: String
+    let dark: Bool
+
+    /// Scalar doesn't start on the opaque origin of a nil base URL. `.invalid` never resolves, so nothing is fetched from it.
+    static let base = URL(string: "https://decant.invalid/")!
+    static let script = Bundle.module.url(forResource: "scalar", withExtension: "js").flatMap { try? String(contentsOf: $0, encoding: .utf8) } ?? ""
+
+    static let page = """
+        <!doctype html><html><head><meta charset="utf-8"></head><body><div id="app"></div><script>
+        let ref, timer
+        // Debounced so typing in the editor doesn't re-render on every key.
+        function show(content, dark) {
+          const config = { content, darkMode: dark, forceDarkModeState: dark ? 'dark' : 'light', hideDarkModeToggle: true,
+            withDefaultFonts: false, telemetry: false, agent: { disabled: true }, mcp: { disabled: true }, showDeveloperTools: 'never', documentDownloadType: 'none' }
+          clearTimeout(timer)
+          timer = setTimeout(() => ref ? ref.updateConfiguration(config) : (ref = Scalar.createApiReference('#app', config)), ref ? 300 : 0)
+        }
+        </script></body></html>
+        """
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeNSView(context: Context) -> WKWebView {
+        let config = WKWebViewConfiguration()
+        config.userContentController.addUserScript(WKUserScript(source: Self.script, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
+        let web = WKWebView(frame: .zero, configuration: config)
+        web.setValue(false, forKey: "drawsBackground")
+        web.navigationDelegate = context.coordinator
+        web.uiDelegate = context.coordinator
+        web.loadHTMLString(Self.page, baseURL: Self.base)
+        return web
+    }
+
+    func updateNSView(_ web: WKWebView, context: Context) {
+        context.coordinator.run("show(\(JSONValue.quote(spec)), \(dark))", in: web)
+    }
+
+    final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
+        private var loaded = false, pending: String?, last: String?
+
+        func run(_ js: String, in web: WKWebView) {
+            guard loaded else { pending = js; return }
+            guard js != last else { return }
+            last = js
+            web.evaluateJavaScript(js)
+        }
+
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            loaded = true
+            if let pending { run(pending, in: webView) }
+        }
+
+        func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction, decisionHandler: @escaping @MainActor (WKNavigationActionPolicy) -> Void) {
+            // In-page anchors stay in the view, real links go to the browser.
+            if action.navigationType == .linkActivated, let url = action.request.url, url.host != ScalarView.base.host {
+                NSWorkspace.shared.open(url)
+                decisionHandler(.cancel)
+            } else {
+                decisionHandler(.allow)
+            }
+        }
+
+        func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for action: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
+            if let url = action.request.url { NSWorkspace.shared.open(url) }
+            return nil
+        }
+    }
+}
+
 // MARK: - Color
 
 struct ColorPage: View {

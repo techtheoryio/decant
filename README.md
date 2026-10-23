@@ -29,11 +29,11 @@ swift test            # engine tests
 
 | Category | Tools |
 | --- | --- |
-| Format | Auto Detect (New), Formatter (JSON tree/query/repair; JS, TS, CSS, SCSS, Less, HTML, XML, Markdown, YAML, GraphQL), Markdown preview |
+| Format | Auto Detect (New), Formatter (JSON tree/query/repair; JS, TS, CSS, SCSS, Less, HTML, XML, Markdown, YAML, GraphQL), Markdown preview, OpenAPI editor with a [Scalar](https://github.com/scalar/scalar) API reference preview |
 | Encoding | Base64 (text and files, URL-safe, padding, MIME wrap, data: URIs, magic-byte detection), URL encode with query table |
 | Time | Unix time (live clock, results table, date picker, time zones, differences), Cron (plain words, next runs) |
 | Tokens & Security | JWT decoder with HMAC check, UUID v4/v7 + ULID generator and inspector, password generator |
-| Data | CSV ↔ JSON with table preview |
+| Data | CSV ↔ JSON with table preview, JSON ↔ YAML (YAML 1.2, anchors and merges) |
 | Text | Diff (side by side / unified, word highlights, folding), Git Diff cleanup for AI review (drops lockfiles, generated and binary files; path filters), Regex tester, character/word/line counter |
 | Miscellaneous | Color converter (color panel, eyedropper, contrast), QR code generator and reader |
 
@@ -45,7 +45,7 @@ Decant's main feature is what it leaves out. Every tool has to earn its place, a
 
 - **Daily use.** A tool belongs here if developers reach for it every week, not once a year.
 - **Offline and local.** Nothing leaves your machine. No features that need a server, an API key, or a login.
-- **Zero dependencies.** Only Apple's frameworks. Optional external tools (Biome, Prettier) are used when you already have them, never bundled.
+- **Zero dependencies.** Only Apple's frameworks. Optional external tools (Biome, Prettier) are used when you already have them, never bundled. The one exception is the OpenAPI preview, which ships Scalar's prebuilt script so it works offline.
 - **Fast to open, fast to use.** Paste, get the answer, move on. No setup, no onboarding, no settings you have to learn first.
 - **Deleting beats adding.** A smaller, sharper app is better than a bigger one. We remove things that don't pull their weight.
 
@@ -69,6 +69,7 @@ Ground rules for PRs:
 - `Sources/DecantCore` — deterministic engine and tool logic, no UI. `Sources/Decant` — the app.
 - History lives in `~/Library/Application Support/Decant/history.json`; retention and size are set in Settings → History. Pinned entries are kept.
 - The Formatter uses Biome or Prettier when either is on your login-shell `PATH` (looked up via `zsh -lic`), Biome first for the languages it supports. Without them it falls back to the built-in JSON and JS/TS formatters and Foundation's XML/HTML pretty-printer; other languages are shown unformatted.
+- OpenAPI preview: `Sources/Decant/Resources/scalar.js` is the standalone build of [`@scalar/api-reference`](https://www.npmjs.com/package/@scalar/api-reference) (MIT), currently 1.73.1. To update, replace it with `https://cdn.jsdelivr.net/npm/@scalar/api-reference@<version>/dist/browser/standalone.js`. Telemetry, the AI agent, MCP and web fonts are turned off in `ScalarView`; "Test Request" still sends requests to the API's servers when you click it.
 - App icon: source `Assets/AppIcon.svg`; after editing run `Assets/make-icon.sh` (needs `rsvg-convert`) to rebuild `Sources/Decant/Resources/AppIcon.icns`.
 - Releasing: push a `v1.2.0`-style tag; `.github/workflows/release.yaml` runs the tests, builds a universal `.app` with `scripts/build-app.sh`, signs and notarizes it, and attaches the zip to a GitHub release. Secrets: `DEVELOPER_ID_P12` (base64 `.p12`), `DEVELOPER_ID_P12_PASSWORD`, `NOTARY_KEY` (base64 App Store Connect `.p8`), `NOTARY_KEY_ID`, `NOTARY_ISSUER_ID`.
 - Debug builds: `[DECANT_TOOL=base64] DECANT_INPUT=… [DECANT_AUX=…] DECANT_SNAPSHOT=out.png [DECANT_DARK=1] .build/debug/Decant` writes a PNG of the window and quits without touching history. UserDefaults can be set per run with launch arguments, e.g. `-formatterTree YES`.
