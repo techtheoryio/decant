@@ -1197,6 +1197,8 @@ struct GeneralSettings: View {
     @AppStorage("sortKeys") private var sortKeys = false
     @AppStorage("timeZone") private var timeZone = ""
     @AppStorage("useExternalFormatter") private var useExternal = true
+    @AppStorage("SUEnableAutomaticChecks") private var checkForUpdates = true  // Sparkle's own keys; defaults match the Info.plist
+    @AppStorage("SUAutomaticallyUpdate") private var installUpdates = true
     @State private var formatters: ExternalFormatters?
 
     var body: some View {
@@ -1222,6 +1224,15 @@ struct GeneralSettings: View {
                 LabeledContent("Biome", value: formatters.map { $0.biome ?? "Not found" } ?? "Looking…")
                 LabeledContent("Prettier", value: formatters.map { $0.prettier ?? "Not found" } ?? "Looking…")
             }
+            Section("Updates") {
+                Toggle("Check GitHub for updates once a day", isOn: $checkForUpdates)
+                    .onChange(of: checkForUpdates) { _, v in updater.updater.automaticallyChecksForUpdates = v }
+                Toggle("Install updates automatically", isOn: $installUpdates)
+                    .onChange(of: installUpdates) { _, v in updater.updater.automaticallyDownloadsUpdates = v }
+                    .disabled(!checkForUpdates)
+                Button("Check Now") { updater.checkForUpdates(nil) }
+            }
+            .disabled(!canUpdate)
             Section {
                 Link("Decant on GitHub", destination: githubURL)
             }

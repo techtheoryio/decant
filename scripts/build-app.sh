@@ -2,6 +2,7 @@
 # Builds a universal, signed Decant.app and zips it into .build/Decant-<version>.zip.
 #   scripts/build-app.sh 1.2.0
 # Signs ad-hoc unless SIGN_IDENTITY is set (e.g. "Developer ID Application: …").
+# Embeds Sparkle; its public EdDSA key is below, the private one is in the keychain (account "decant") and the SPARKLE_ED_KEY secret.
 # Notarizes and staples when NOTARY_KEY (path to the .p8), NOTARY_KEY_ID and NOTARY_ISSUER_ID are set.
 set -euo pipefail
 cd "${0:A:h}/.."
@@ -18,6 +19,9 @@ mkdir -p $app/Contents/{MacOS,Resources}
 cp $bin/Decant $app/Contents/MacOS/
 cp Sources/Decant/Resources/AppIcon.icns $app/Contents/Resources/
 cp -R $bin/Decant_Decant.bundle $app/Contents/Resources/  # Bundle.module fatalErrors without it
+mkdir -p $app/Contents/Frameworks
+cp -R $bin/Sparkle.framework $app/Contents/Frameworks/
+rm -rf $app/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices  # only sandboxed apps need them
 
 cat > $app/Contents/Info.plist <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -34,15 +38,24 @@ cat > $app/Contents/Info.plist <<EOF
     <key>LSMinimumSystemVersion</key><string>14.0</string>
     <key>LSApplicationCategoryType</key><string>public.app-category.developer-tools</string>
     <key>NSHighResolutionCapable</key><true/>
+    <key>SUFeedURL</key><string>https://github.com/techtheoryio/decant/releases/latest/download/appcast.xml</string>
+    <key>SUPublicEDKey</key><string>jLdlprMwzTHg+a3pBX1CmGiRyrIKyA0ppAgO1VoqiiI=</string>
+    <key>SUEnableAutomaticChecks</key><true/>
+    <key>SUAutomaticallyUpdate</key><true/>
 </dict>
 </plist>
 EOF
 
+# Inside out, no --deep: Sparkle's helpers, the framework, then the app.
+sparkle=$app/Contents/Frameworks/Sparkle.framework/Versions/B
 if [[ -n ${SIGN_IDENTITY:-} ]]; then
-    codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" $app
+    sign=(codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY")
 else
-    codesign --force --sign - $app
+    sign=(codesign --force --sign -)
 fi
+$sign $sparkle/Autoupdate $sparkle/Updater.app
+$sign $app/Contents/Frameworks/Sparkle.framework
+$sign $app
 codesign --verify --strict --verbose=2 $app
 
 # ditto, not zip: plain zip mangles the signature.

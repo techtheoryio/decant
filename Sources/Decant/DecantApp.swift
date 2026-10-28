@@ -35,6 +35,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         NSApp.activate()
         Task.detached { _ = ExternalFormatters.shared }  // the login-shell lookup takes a moment; warm it up
+        _ = updater  // starts Sparkle's scheduled checks
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
@@ -64,6 +65,9 @@ struct AppCommands: Commands {
     @AppStorage("wrapLines") private var wrap = false
 
     var body: some Commands {
+        CommandGroup(after: .appInfo) {
+            Button("Check for Updates…") { updater.checkForUpdates(nil) }.disabled(!canUpdate)
+        }
         CommandGroup(replacing: .newItem) {
             Button("New") { store.newDocument() }.keyboardShortcut("n")
             Button("Open File…") { store.importing = true }.keyboardShortcut("o")
