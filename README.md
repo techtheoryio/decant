@@ -2,14 +2,14 @@
 
 Paste anything; Decant detects the format and converts it — plus a set of focused developer tools. Native macOS app (SwiftUI + AppKit, macOS 14+). Everything runs locally.
 
-Decant is open source and free — forever. No accounts, no telemetry, no network calls, no paid tier, no "pro" features.
+Decant is open source and free — forever. No accounts, no telemetry, no network calls except the daily update check against GitHub releases (turn it off in Settings → General), no paid tier, no "pro" features.
 
 ![Formatter: minified JSON in, pretty JSON out](Assets/screenshots/formatter.png)
 ![JWT decoder in dark mode](Assets/screenshots/jwt.png)
 
 ## Install
 
-Download `Decant-<version>.zip` from [Releases](https://github.com/techtheoryio/decant/releases), unzip, and move `Decant.app` to Applications. Builds are signed and notarized. To update, download the newer release; watch the repo for "Releases only" to get notified.
+Download `Decant-<version>.zip` from [Releases](https://github.com/techtheoryio/decant/releases), unzip, and move `Decant.app` to Applications. Builds are signed and notarized. Updates come through [Sparkle](https://sparkle-project.org): Decant checks the latest GitHub release once a day and installs new versions automatically (Decant → Check for Updates… to check now; both settings are in Settings → General).
 
 Or build it yourself (needs Xcode 26 / Swift 6):
 
@@ -45,7 +45,7 @@ Decant's main feature is what it leaves out. Every tool has to earn its place, a
 
 - **Daily use.** A tool belongs here if developers reach for it every week, not once a year.
 - **Offline and local.** Nothing leaves your machine. No features that need a server, an API key, or a login.
-- **Zero dependencies.** Only Apple's frameworks. Optional external tools (Biome, Prettier) are used when you already have them, never bundled. The one exception is the OpenAPI preview, which ships Scalar's prebuilt script so it works offline.
+- **Almost no dependencies.** Apple's frameworks plus [Sparkle](https://sparkle-project.org) for updates. Optional external tools (Biome, Prettier) are used when you already have them, never bundled. The OpenAPI preview ships Scalar's prebuilt script so it works offline.
 - **Fast to open, fast to use.** Paste, get the answer, move on. No setup, no onboarding, no settings you have to learn first.
 - **Deleting beats adding.** A smaller, sharper app is better than a bigger one. We remove things that don't pull their weight.
 
@@ -60,7 +60,7 @@ For a **new tool or a bigger change, open an issue first** so we can talk about 
 Ground rules for PRs:
 
 - Keep the diff focused. One change per PR.
-- No new dependencies.
+- No new dependencies (Sparkle for updates is the only one).
 - Logic goes in `Sources/DecantCore` with a test in `Tests/DecantCoreTests`; `swift test` must pass.
 - Match the surrounding code style. Less code is better code.
 
@@ -71,7 +71,7 @@ Ground rules for PRs:
 - The Formatter uses Biome or Prettier when either is on your login-shell `PATH` (looked up via `zsh -lic`), Biome first for the languages it supports. Without them it falls back to the built-in JSON and JS/TS formatters and Foundation's XML/HTML pretty-printer; other languages are shown unformatted.
 - OpenAPI preview: `Sources/Decant/Resources/scalar.js` is the standalone build of [`@scalar/api-reference`](https://www.npmjs.com/package/@scalar/api-reference) (MIT), currently 1.73.1. To update, replace it with `https://cdn.jsdelivr.net/npm/@scalar/api-reference@<version>/dist/browser/standalone.js`. Telemetry, the AI agent, MCP and web fonts are turned off in `ScalarView`; "Test Request" still sends requests to the API's servers when you click it.
 - App icon: source `Assets/AppIcon.svg`; after editing run `Assets/make-icon.sh` (needs `rsvg-convert`) to rebuild `Sources/Decant/Resources/AppIcon.icns`.
-- Releasing: push a `v1.2.0`-style tag; `.github/workflows/release.yaml` runs the tests, builds a universal `.app` with `scripts/build-app.sh`, signs and notarizes it, and attaches the zip to a GitHub release. Secrets: `DEVELOPER_ID_P12` (base64 `.p12`), `DEVELOPER_ID_P12_PASSWORD`, `NOTARY_KEY` (base64 App Store Connect `.p8`), `NOTARY_KEY_ID`, `NOTARY_ISSUER_ID`.
+- Releasing: push a `v1.2.0`-style tag; `.github/workflows/release.yaml` runs the tests, builds a universal `.app` with `scripts/build-app.sh`, signs and notarizes it, and attaches the zip to a GitHub release. It also signs the zip with Sparkle's EdDSA key and attaches an `appcast.xml`; the app's feed URL is `releases/latest/download/appcast.xml`. Secrets: `DEVELOPER_ID_P12` (base64 `.p12`), `DEVELOPER_ID_P12_PASSWORD`, `NOTARY_KEY` (base64 App Store Connect `.p8`), `NOTARY_KEY_ID`, `NOTARY_ISSUER_ID`, `SPARKLE_ED_KEY` (`.build/artifacts/sparkle/Sparkle/bin/generate_keys --account decant -x key.txt`; the public key is in `scripts/build-app.sh`).
 - Debug builds: `[DECANT_TOOL=base64] DECANT_INPUT=… [DECANT_AUX=…] DECANT_SNAPSHOT=out.png [DECANT_DARK=1] .build/debug/Decant` writes a PNG of the window and quits without touching history. UserDefaults can be set per run with launch arguments, e.g. `-formatterTree YES`.
 
 ## License

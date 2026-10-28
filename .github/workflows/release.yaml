@@ -1,4 +1,4 @@
-# Push a tag like v1.2.0 → tests, signed + notarized Decant.app, GitHub release with the zip.
+# Push a tag like v1.2.0 → tests, signed + notarized Decant.app, GitHub release with the zip and Sparkle's appcast.xml.
 name: Release
 
 on:
@@ -45,7 +45,35 @@ jobs:
           scripts/build-app.sh "${GITHUB_REF_NAME#v}"
           spctl --assess --type execute -vv .build/Decant.app
 
+      # Sparkle reads releases/latest/download/appcast.xml, so every release carries a one-item feed.
+      - name: Write appcast
+        env:
+          SPARKLE_ED_KEY: ${{ secrets.SPARKLE_ED_KEY }}
+        run: |
+          version=${GITHUB_REF_NAME#v}
+          echo "$SPARKLE_ED_KEY" > $RUNNER_TEMP/sparkle.key
+          sig=$(.build/artifacts/sparkle/Sparkle/bin/sign_update --ed-key-file $RUNNER_TEMP/sparkle.key .build/Decant-$version.zip)
+          rm $RUNNER_TEMP/sparkle.key
+          release=https://github.com/$GITHUB_REPOSITORY/releases
+          cat > .build/appcast.xml <<EOF
+          <?xml version="1.0" encoding="utf-8"?>
+          <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+            <channel>
+              <title>Decant</title>
+              <item>
+                <title>Decant $version</title>
+                <pubDate>$(date -R)</pubDate>
+                <sparkle:version>$version</sparkle:version>
+                <sparkle:shortVersionString>$version</sparkle:shortVersionString>
+                <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+                <sparkle:fullReleaseNotesLink>$release/tag/$GITHUB_REF_NAME</sparkle:fullReleaseNotesLink>
+                <enclosure url="$release/download/$GITHUB_REF_NAME/Decant-$version.zip" type="application/octet-stream" $sig/>
+              </item>
+            </channel>
+          </rss>
+          EOF
+
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" .build/Decant-*.zip --title "Decant ${GITHUB_REF_NAME#v}" --generate-notes
+        run: gh release create "$GITHUB_REF_NAME" .build/Decant-*.zip .build/appcast.xml --title "Decant ${GITHUB_REF_NAME#v}" --generate-notes
